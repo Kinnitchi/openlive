@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { RoomView } from "@/components/RoomView";
 import { getName, setName } from "@/lib/identity";
+import { roomLabel } from "@/lib/config";
 
 export function WatchClient({ room }: { room: string }) {
   const [name, setNameState] = useState<string | null>(null);
@@ -20,9 +21,9 @@ export function WatchClient({ room }: { room: string }) {
   if (name) return <RoomView room={room} name={name} />;
 
   return (
-    <div className="flex min-h-dvh items-center justify-center p-4">
+    <div className="flex min-h-dvh items-center justify-center bg-[radial-gradient(ellipse_at_top,rgba(99,102,241,.18),transparent_60%)] p-4">
       <form
-        className="w-full max-w-sm space-y-4 rounded-2xl border border-line bg-panel p-6"
+        className="w-full max-w-sm space-y-4 rounded-2xl border border-line bg-panel p-6 shadow-2xl shadow-black/40"
         onSubmit={(e) => {
           e.preventDefault();
           const n = draft.trim();
@@ -31,7 +32,10 @@ export function WatchClient({ room }: { room: string }) {
           setNameState(n);
         }}
       >
-        <h1 className="text-lg font-semibold">Entrar na sala</h1>
+        <div className="space-y-1">
+          <p className="text-xs uppercase tracking-wide text-zinc-500">Você foi convidado para</p>
+          <h1 className="truncate text-xl font-semibold">{roomLabel(room)}</h1>
+        </div>
         <input
           autoFocus
           value={draft}

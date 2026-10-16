@@ -1,3 +1,5 @@
+import type { CameraQuality, ScreenQuality } from "./quality";
+
 // Identidade de convidado (sem cadastro): nome + clientId persistentes no navegador.
 function safeGet(k: string) {
   try { return localStorage.getItem(k); } catch { return null; }
@@ -24,11 +26,12 @@ export function setName(n: string) {
 
 export interface Prefs {
   forceRelay: boolean;
-  screenQuality: "720p30" | "1080p30" | "1080p60" | "source";
+  screenQuality: ScreenQuality;
+  cameraQuality: CameraQuality;
   systemAudio: boolean;
   noiseSuppression: boolean;
 }
-const DEFAULT_PREFS: Prefs = { forceRelay: false, screenQuality: "1080p30", systemAudio: true, noiseSuppression: true };
+const DEFAULT_PREFS: Prefs = { forceRelay: false, screenQuality: "720p30", cameraQuality: "540p", systemAudio: true, noiseSuppression: true };
 
 export function getPrefs(): Prefs {
   try { return { ...DEFAULT_PREFS, ...JSON.parse(safeGet("ol:prefs") ?? "{}") }; } catch { return DEFAULT_PREFS; }

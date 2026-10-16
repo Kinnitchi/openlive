@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { RoomApi } from "@/hooks/useRoom";
 import type { Channel } from "@/lib/protocol";
-import { MaximizeIcon, PauseIcon, PlayIcon, RelayIcon } from "./icons";
+import { CameraIcon, FileVideoIcon, MaximizeIcon, PauseIcon, PlayIcon, RelayIcon, ScreenIcon } from "./icons";
 
 interface Tile {
   id: string;
@@ -92,7 +92,7 @@ function RemoteFileControls({ api, origin }: { api: RoomApi; origin: string }) {
   );
 }
 
-export function Stage({ api }: { api: RoomApi }) {
+export function Stage({ api, onShare }: { api: RoomApi; onShare: (ch: "screen" | "camera" | "file") => void }) {
   const [focus, setFocus] = useState<string | null>(null);
   const tiles: Tile[] = [];
   for (const [ch, stream] of api.localStreams)
@@ -114,9 +114,29 @@ export function Stage({ api }: { api: RoomApi }) {
 
   if (!tiles.length && !waiting.length)
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-zinc-500">
-        <p className="text-lg text-zinc-300">Ninguém está transmitindo</p>
-        <p className="text-sm">Use os botões no topo para compartilhar sua tela, câmera ou um arquivo de vídeo.</p>
+      <div className="flex h-full flex-col items-center justify-center gap-5 rounded-xl border border-dashed border-line p-6 text-center">
+        <div className="space-y-1">
+          <p className="text-lg font-medium text-zinc-200">Ninguém está transmitindo</p>
+          <p className="text-sm text-zinc-500">Comece você. A qualidade é escolhida antes de abrir.</p>
+        </div>
+        <div className="grid w-full max-w-md gap-2 sm:grid-cols-3">
+          {(
+            [
+              ["screen", "Tela", ScreenIcon],
+              ["camera", "Câmera", CameraIcon],
+              ["file", "Vídeo", FileVideoIcon],
+            ] as const
+          ).map(([ch, label, Icon]) => (
+            <button
+              key={ch}
+              onClick={() => onShare(ch)}
+              className="flex items-center justify-center gap-2 rounded-xl border border-line bg-panel px-4 py-3 text-sm text-zinc-200 transition hover:border-accent hover:bg-accent/10 sm:flex-col sm:py-4"
+            >
+              <Icon width={22} height={22} className="text-indigo-300" />
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
     );
 

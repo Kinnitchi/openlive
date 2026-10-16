@@ -30,20 +30,15 @@ export interface RemoteStream {
   relayedBy: string | null; // null = direto da origem
 }
 
-export const BITRATES: Record<string, number> = {
-  "720p30": 2_500_000,
-  "1080p30": 4_500_000,
-  "1080p60": 8_000_000,
-  source: 12_000_000,
-  camera: 1_500_000,
-  mic: 64_000,
-};
+// Os bitrates de tela e câmera vêm das predefinições em lib/quality.ts.
+const MIC_BITRATE = 64_000;
 
 export class MediaEngine {
   selfId = "";
   iceServers: RTCIceServer[] = [{ urls: "stun:stun.l.google.com:19302" }];
   forceRelay = false;
-  screenBitrate = BITRATES["1080p30"];
+  screenBitrate = 2_500_000;
+  cameraBitrate = 800_000;
 
   readonly local = new Map<Channel, MediaStream>();
   private incoming = new Map<Key, Incoming>();
@@ -180,7 +175,7 @@ export class MediaEngine {
   }
 
   private applyBitrate(pc: RTCPeerConnection, ch: Channel) {
-    const max = ch === "camera" ? BITRATES.camera : ch === "mic" ? BITRATES.mic : this.screenBitrate;
+    const max = ch === "camera" ? this.cameraBitrate : ch === "mic" ? MIC_BITRATE : this.screenBitrate;
     for (const s of pc.getSenders()) {
       if (!s.track) continue;
       const p = s.getParameters();
@@ -197,6 +192,11 @@ export class MediaEngine {
   setScreenBitrate(bps: number) {
     this.screenBitrate = bps;
     for (const o of this.outgoing.values()) if (o.channel === "screen" || o.channel === "file") this.applyBitrate(o.pc, o.channel);
+  }
+
+  setCameraBitrate(bps: number) {
+    this.cameraBitrate = bps;
+    for (const o of this.outgoing.values()) if (o.channel === "camera") this.applyBitrate(o.pc, o.channel);
   }
 
   private closeOutgoing(okey: string) {

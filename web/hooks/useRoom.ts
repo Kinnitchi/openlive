@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SignalingClient, type ConnState } from "@/lib/signaling";
-import { BITRATES, MediaEngine, type RemoteStream } from "@/lib/rtc";
+import { MediaEngine, type RemoteStream } from "@/lib/rtc";
+import { cameraPreset, screenPreset, type CameraQuality, type ScreenQuality } from "@/lib/quality";
 import { httpBase, signalingUrl } from "@/lib/config";
 import { getClientId, getPrefs, setPrefs as savePrefs, type Prefs } from "@/lib/identity";
 import type { Channel, ChatMessage, ControlMode, FileAction, FileState, PeerInfo, ServerMsg } from "@/lib/protocol";
@@ -13,13 +14,6 @@ export interface Reaction {
   name: string;
   x: number;
 }
-
-const SCREEN_CONSTRAINTS: Record<Prefs["screenQuality"], MediaTrackConstraints> = {
-  "720p30": { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } },
-  "1080p30": { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } },
-  "1080p60": { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 60 } },
-  source: { frameRate: { ideal: 60 } },
-};
 
 export function useRoom(room: string, name: string) {
   const [conn, setConn] = useState<ConnState>("connecting");
@@ -66,7 +60,8 @@ export function useRoom(room: string, name: string) {
     );
     const p = getPrefs();
     engine.forceRelay = p.forceRelay;
-    engine.screenBitrate = BITRATES[p.screenQuality];
+    engine.screenBitrate = screenPreset(p.screenQuality).bitrate;
+    engine.cameraBitrate = cameraPreset(p.cameraQuality).bitrate;
     engRef.current = engine;
 
     fetch(`${httpBase()}/ice-servers`)
@@ -219,31 +214,44 @@ export function useRoom(room: string, name: string) {
     }
   }, [prefs.noiseSuppression, startShare, stopShare, notify]);
 
-  const toggleCamera = useCallback(async () => {
-    if (engRef.current?.local.has("camera")) return stopShare("camera");
+  /** Grava a escolha de qualidade (fica pré-selecionada na próxima vez) e aplica o bitrate. */
+  const rememberQuality = useCallback((patch: Partial<Pick<Prefs, "screenQuality" | "cameraQuality" | "systemAudio">>) => {
+    const next = { ...getPrefs(), ...patch };
+    savePrefs(next);
+    setPrefsState(next);
+    const eng = engRef.current;
+    if (eng) {
+      eng.setScreenBitrate(screenPreset(next.screenQuality).bitrate);
+      eng.setCameraBitrate(cameraPreset(next.cameraQuality).bitrate);
+    }
+  }, []);
+
+  const startCamera = useCallback(async (quality: CameraQuality) => {
+    rememberQuality({ cameraQuality: quality });
+    if (engRef.current?.local.has("camera")) stopShare("camera");
     try {
-      const s = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 } } });
+      const s = await navigator.mediaDevices.getUserMedia({ video: cameraPreset(quality).constraints });
       s.getVideoTracks()[0].contentHint = "motion";
       startShare("camera", s);
     } catch {
       notify("Não foi possível acessar a câmera");
     }
-  }, [startShare, stopShare, notify]);
+  }, [rememberQuality, startShare, stopShare, notify]);
 
-  const toggleScreen = useCallback(async () => {
-    if (engRef.current?.local.has("screen")) return stopShare("screen");
-    if (!navigator.mediaDevices?.getDisplayMedia) return notify("Seu navegador não suporta compartilhamento de tela");
-    try {
-      const s = await navigator.mediaDevices.getDisplayMedia({
-        video: SCREEN_CONSTRAINTS[prefs.screenQuality],
-        audio: prefs.systemAudio,
-      });
-      s.getVideoTracks()[0].contentHint = prefs.screenQuality.endsWith("60") ? "motion" : "detail";
-      startShare("screen", s);
-    } catch (e) {
-      if ((e as DOMException)?.name !== "NotAllowedError") notify("Não foi possível compartilhar a tela");
-    }
-  }, [prefs.screenQuality, prefs.systemAudio, startShare, stopShare, notify]);
+  const startScreen = useCallback(
+    async (quality: ScreenQuality, systemAudio: boolean) => {
+      if (!navigator.mediaDevices?.getDisplayMedia) return notify("Seu navegador não suporta compartilhamento de tela");
+      rememberQuality({ screenQuality: quality, systemAudio });
+      try {
+        const s = await navigator.mediaDevices.getDisplayMedia({ video: screenPreset(quality).constraints, audio: systemAudio });
+        s.getVideoTracks()[0].contentHint = quality === "1080p60" || quality === "source" ? "motion" : "detail";
+        startShare("screen", s);
+      } catch (e) {
+        if ((e as DOMException)?.name !== "NotAllowedError") notify("Não foi possível compartilhar a tela");
+      }
+    },
+    [rememberQuality, startShare, notify],
+  );
 
   /** Transmite um arquivo de vídeo local via HTMLVideoElement.captureStream(). */
   const shareFile = useCallback(
@@ -305,12 +313,15 @@ export function useRoom(room: string, name: string) {
       const eng = engRef.current;
       if (eng) {
         eng.forceRelay = p.forceRelay;
-        eng.setScreenBitrate(BITRATES[p.screenQuality]);
+        eng.setScreenBitrate(screenPreset(p.screenQuality).bitrate);
+        eng.setCameraBitrate(cameraPreset(p.cameraQuality).bitrate);
       }
     },
     toggleMic,
-    toggleCamera,
-    toggleScreen,
+    startCamera,
+    startScreen,
+    /** Arquivos usam o mesmo teto de bitrate da tela. */
+    setFileQuality: (quality: ScreenQuality) => rememberQuality({ screenQuality: quality }),
     shareFile,
     stopShare,
     setDeafened,
