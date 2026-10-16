@@ -23,8 +23,10 @@ function iceServers() {
       const username = `${Math.floor(Date.now() / 1000) + ttl}:openlive`;
       const credential = createHmac("sha1", process.env.TURN_SECRET).update(username).digest("base64");
       list.push({ urls: turn, username, credential });
-    } else {
+    } else if (process.env.TURN_USERNAME && process.env.TURN_CREDENTIAL) {
       list.push({ urls: turn, username: process.env.TURN_USERNAME, credential: process.env.TURN_CREDENTIAL });
+    } else {
+      console.warn("TURN_URLS definido sem TURN_USERNAME/TURN_CREDENTIAL — TURN ignorado");
     }
   }
   return list;
