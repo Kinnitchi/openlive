@@ -1,0 +1,22 @@
+services:
+  server:
+    build: ./server
+    environment:
+      PORT: 8787
+      TURN_URLS: turn:localhost:3478
+      TURN_SECRET: troque-este-segredo
+    ports: ["8787:8787"]
+  web:
+    build:
+      context: ./web
+      args:
+        NEXT_PUBLIC_SIGNALING_URL: ws://localhost:8787/ws
+    ports: ["3000:3000"]
+    depends_on: [server]
+  turn:
+    image: coturn/coturn:4.6
+    network_mode: host
+    command: >
+      -n --listening-port=3478 --fingerprint --use-auth-secret
+      --static-auth-secret=troque-este-segredo --realm=openlive
+      --min-port=49160 --max-port=49200 --no-cli
